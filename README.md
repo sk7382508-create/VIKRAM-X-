@@ -1,78 +1,52 @@
 # VIKRAM-X
 
-**Adaptive Noise Cancellation for Defence Communication**  
-SIH Problem Statement: SIH26052  
-Organization: DRDO — Department of Defence R&D  
-Team: TEAM ZENITH
+**Adaptive battlefield communication audio enhancement — SIH proof of concept**
 
-## Overview
+VIKRAM-X is a Streamlit demo that analyzes a noisy WAV recording, detects short impulsive events, routes the audio through continuous-noise and transient-suppression paths, and blends their outputs. The interface presents the input and enhanced audio, routing timeline, signal plots, and reference-based quality metrics.
 
-VIKRAM-X is a software feasibility prototype for adaptive suppression of noisy speech recordings. It analyzes audio in short frames, detects impulsive events, processes continuous interference and transients through separate signal-processing paths, and fuses their outputs.
+> This is a research/demo prototype for prerecorded audio. It is not a field-tested defence system, and its continuous-noise processor is a signal-processing baseline rather than a trained neural speech-enhancement model.
 
-The current application processes prerecorded WAV files through a Streamlit interface. Its supplied battlefield-style samples use synthetic helicopter, engine, wind, and impulse noise. They are not field recordings.
-
-## Implemented pipeline
+## Processing flow
 
 ```text
 Noisy WAV
-   ↓
-Mono conversion and resampling to 16 kHz
-   ↓
-20 ms frames with 10 ms hop
-   ↓
-Acoustic feature extraction and threshold-based Traffic Director
-   ├── Continuous interference → spectral suppression path
-   └── Impulsive event          → fast DSP transient limiter
-                    ↓
-           Time-varying adaptive fusion
-                    ↓
-          Reconstructed enhanced WAV
+   │
+   ├── Feature extraction ── Traffic Director ── frame-level routing
+   │                                                │
+   ├── Continuous-noise spectral suppression ──────┤
+   ├── Impulsive-event DSP limiter ─────────────────┤
+   │                                                ▼
+   └────────────────────────────────────────── Adaptive fusion
+                                                    │
+                                              Enhanced WAV
 ```
 
-### Processing modules
+- **Continuous interference:** a spectral-mask baseline suppresses persistent rotor, engine, and wind noise.
+- **Impulsive events:** a fast DSP path attenuates detected transients, such as the demo's gunfire-like impulses.
+- **Adaptive fusion:** a time-varying weight favors the continuous-noise path during steady interference and the DSP path during detected impulses.
+- **Evaluation:** when a clean reference is available, the app computes SI-SNR and STOI before and after processing. These are measured results, not generated claims.
 
-- **Feature extraction:** RMS, crest factor, kurtosis, spectral flux, spectral centroid, zero-crossing rate, and sub-band energy.
-- **Traffic Director:** deterministic thresholds classify frames as continuous noise, speech-dominant, or impulsive. The current router is not a trained classifier.
-- **Continuous-noise path:** temporal-percentile spectral subtraction with a gain floor. This is a signal-processing baseline, not a trained neural model or DCCRN implementation.
-- **Impulsive path:** envelope limiting and targeted attenuation around detected transient frames.
-- **Fusion:** sample-level smoothing of the time-varying weight blends the continuous and transient paths.
-- **Reconstruction and evaluation:** WAV export and measured signal telemetry. SI-SNR and STOI are calculated only when a matching clean reference is available.
+## Demo scenarios
 
-## Demonstration scenarios
+Choose a scenario from the Streamlit sidebar:
 
-The repository includes generated 16 kHz WAV scenarios:
-
-| Scenario | Contents |
+| Scenario | Description |
 | --- | --- |
-| Battlefield mixed, −5 dB target SNR | Speech, continuous synthetic helicopter/engine interference, impulses near 5 s and 8 s |
-| Battlefield mixed, −10 dB target SNR | Higher-interference stress scenario |
-| Battlefield mixed, 0 dB target SNR | Moderate-interference scenario |
-| Helicopter dominant | Speech and continuous helicopter interference |
-| Impulsive events | Speech and synthetic transient events |
+| Battlefield mixed | Speech with synthetic continuous helicopter/engine noise and impulses at approximately 5 s and 8 s. Includes −5 dB, −10 dB, and 0 dB target SNR options. |
+| Helicopter dominant | Speech with continuous helicopter noise and no impulses. |
+| Impulsive gunfire | Speech with several synthetic impulsive events. |
+| Custom WAV | Upload a WAV recording for offline processing. Mono 16 kHz audio is recommended; other sample rates are converted. |
 
-The Streamlit interface displays before/after audio, routing timeline, waveform and spectrogram plots, fusion telemetry, and objective measurements. Custom WAV uploads are supported. A clean, time-aligned reference WAV enables reference-based SI-SNR and STOI; without one, the interface reports RMS, peak-level changes, and clipping percentages.
-
-## Measured demonstration result
-
-One local run of the bundled battlefield mixed sample produced the following reference-based measurements:
-
-| Metric | Noisy input | Enhanced output | Change |
-| --- | ---: | ---: | ---: |
-| SI-SNR | −5.43 dB | −3.79 dB | +1.64 dB |
-| STOI | 0.709 | 0.709 | 0.000 |
-| PESQ | Not available | Not available | Not measured |
-
-This is a single result on a synthetic demo sample. It does not establish performance on real battlefield recordings or generalize to other speakers and noise conditions. PESQ was unavailable in the tested Windows environment. Runtime latency and embedded performance have not been measured.
-
-The SIH26052 problem statement lists targets of SNR greater than 15 dB, STOI greater than 0.85, PESQ greater than 2.5, and real-time operation. The current prototype has not demonstrated those targets.
+The generated noise and battlefield scenarios are synthetic demo material; they are not real battlefield recordings.
 
 ## Run locally
 
-Requirements: Python 3.10 or later and the packages listed in `requirements.txt`.
+Requirements: Python 3.10 or newer and the packages in `requirements.txt`.
 
 ### Windows PowerShell
 
 ```powershell
+cd path\to\vikram-x-demo
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -83,6 +57,7 @@ streamlit run app.py
 ### macOS or Linux
 
 ```bash
+cd path/to/vikram-x-demo
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -90,57 +65,63 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Streamlit serves the application at `http://localhost:8501` by default.
+Streamlit prints the local address, usually <http://localhost:8501>.
 
-## Audio generation
+## Using the demo
 
-Pre-generated scenarios are included under `data/generated/`. The generation script uses `data/speech/clean_speech.wav` as its reference input:
+1. Select **MODE 3: Battlefield Mixed** for the main showcase.
+2. Leave the default **Extreme (−5 dB SNR)** setting for the primary demonstration.
+3. Play the raw recording, then select **EXECUTE VIKRAM-X DUAL-PATH ENHANCEMENT**.
+4. Compare the before/after players and inspect the routing timeline, spectrograms, fusion-weight plot, and objective metrics.
+5. Use the download button to save the enhanced WAV.
+
+For custom recordings, select **Custom Upload (.WAV)** in the sidebar. The app always reports measured RMS and peak levels and clipping percentages. To calculate SI-SNR and STOI, also upload a clean WAV containing the same speech, with matching start and duration. Without that reference, reference-based speech-quality scores are not mathematically available and are not estimated or fabricated.
+
+## Project layout
+
+```text
+app.py                  Streamlit user interface and processing orchestration
+src/audio.py            WAV loading, resampling, and synthetic battlefield audio
+src/features.py         Frame-level temporal and spectral features
+src/traffic_director.py Impulse detection and path routing
+src/ai_path.py          Continuous-noise spectral suppression baseline
+src/impulse_path.py     Transient DSP suppression
+src/fusion.py           Adaptive output fusion
+src/reconstruction.py   Safe WAV output
+src/metrics.py          SI-SNR, STOI, and optional PESQ evaluation
+data/                   Demo audio, clean speech reference, and generated scenarios
+outputs/                Enhanced audio and demo outputs
+```
+
+## Regenerating the demo audio
+
+The repository includes the generated WAV scenarios. To regenerate them, keep `data/speech/clean_speech.wav` in place and run:
 
 ```bash
 python generate_samples.py
 ```
 
-The clean speech file is required; the script does not download a replacement. The source and redistribution license for the supplied speech reference are not documented in this repository.
+The clean speech reference is required to generate the scenarios and calculate objective metrics. The generator does not download a replacement reference automatically.
 
-## Project structure
+`data/speech/clean_speech.wav` is described in `generate_samples.py` as a 14.84-second LibriSpeech sample. The repository does not record its LibriSpeech speaker/chapter/utterance identifier, original download location, or applicable licence/attribution, so its specific source and redistribution rights have not been verified. Do not treat the file as licence-cleared until its provenance and licence are confirmed.
 
-```text
-app.py                  Streamlit interface and pipeline orchestration
-generate_samples.py     Synthetic demo-scenario generation
-requirements.txt        Python dependencies
-data/
-  generated/             Mixed and isolated demo WAV files
-  speech/                Clean speech reference
-  helicopter/            Synthetic helicopter component
-  impulse/               Synthetic impulse component
-outputs/                  Processed and sample output files
-src/
-  audio.py                Audio loading, resampling, and synthesis
-  preprocessing.py        STFT/iSTFT and framing
-  features.py             Frame-level acoustic features
-  traffic_director.py     Impulse detection and routing
-  ai_path.py              Continuous-noise spectral suppression
-  impulse_path.py         Fast transient suppression
-  fusion.py               Adaptive path fusion
-  reconstruction.py       Output WAV reconstruction
-  metrics.py              Reference-based and signal-level metrics
-```
+## Evaluation note
 
-## Scope and limitations
+Results depend on the recording and suppression settings. On the bundled −5 dB battlefield sample, a local run measured an SI-SNR change from **−5.43 dB** to **−3.79 dB** and STOI of **0.709** before and after enhancement. This is a modest improvement, not complete noise removal. PESQ may be unavailable depending on the platform's native runtime support.
 
-- The input is prerecorded audio; live radio and microphone streaming are not implemented.
-- The continuous-noise processor is a deterministic spectral baseline; no neural checkpoint is included.
-- Multi-microphone beamforming, spatial filtering, and embedded hardware deployment are not implemented.
-- Tests use controlled synthetic mixtures. Robustness to real operational recordings remains unverified.
-- The prototype is a software feasibility demonstration, not a field-tested defence system.
+## Limitations and roadmap
 
-## References
+### Roadmap
 
-- Hu et al., “DCCRN: Deep Complex Convolution Recurrent Network for Phase-Aware Speech Enhancement,” *Interspeech 2020*. DCCRN is a possible future enhancement direction and is not used by the current prototype.
-- Westhausen and Meyer, “Dual-Signal Transformation LSTM Network for Real-Time Noise Suppression,” *Interspeech 2020*.
-- Valin, “A Hybrid DSP/Deep Learning Approach to Real-Time Full-Band Speech Enhancement,” *IEEE MMSP 2018*.
+Planned work, not yet implemented:
 
-## Team
+- DCCRN speech enhancement model
+- Beamforming
+- LMS adaptive filtering
+- Live/streaming audio processing
+- Hardware/embedded deployment
 
-**TEAM ZENITH** — Smart India Hackathon 2026  
-**VIKRAM-X — Adaptive Noise Cancellation for Defence Communication**
+- Current continuous-noise enhancement is a deterministic spectral-processing baseline. No DCCRN or other trained neural checkpoint is included.
+- The demo processes prerecorded/uploaded files; it does not provide live radio, microphone-array, beamforming, or embedded-device processing.
+- Synthetic scenario performance does not establish performance on real operational recordings.
+- A trained speech-enhancement model, real noise datasets, and deployment-specific latency and safety validation would be separate future work.
